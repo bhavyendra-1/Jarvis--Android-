@@ -26,6 +26,13 @@ public class Voice extends Service implements RecognitionListener {
  mic.startListening(new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_LANGUAGE,"en-GB"));}
  public void onResults(Bundle b){ArrayList<String> words=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);String q=words==null||words.isEmpty()?"":words.get(0).toLowerCase(Locale.ROOT).replaceAll("[.!?,]","").trim();
  String reply;if(!awake){if(!q.equals("wake up jarvis")){main.postDelayed(this::listen,350);return;}awake=true;reply="Ready, sir.";}
+ else if(q.equals("lock my phone") || q.equals("turn off the screen")){
+ android.app.admin.DevicePolicyManager policy=getSystemService(android.app.admin.DevicePolicyManager.class);
+ if(!policy.isAdminActive(new ComponentName(this,LockAdmin.class)))reply="Open Jarvis and tap Enable screen lock first.";
+ else {try{policy.lockNow();awake=false;chat=new Chat();reply="Standing by, sir.";}
+ catch(SecurityException error){reply="Android denied the lock request.";}}
+ }
+ else if(q.equals("unlock my phone"))reply="Use the phone lock screen to unlock, sir.";
  else if(q.equals("go to sleep")){awake=false;chat=new Chat();reply="Standing by.";}else if(q.matches("(what time is it|time|what is the time|tell me the time)"))reply="It is "+android.text.format.DateFormat.getTimeFormat(this).format(new Date());else {
  if(q.isEmpty()){listen();return;}
  String question=words.get(0);Chat session=chat;state="Asking Gemini…";
