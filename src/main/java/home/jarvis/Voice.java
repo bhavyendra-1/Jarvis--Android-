@@ -22,7 +22,7 @@ public class Voice extends Service implements RecognitionListener {
  voice=new TextToSpeech(this,s->{if(closed)return;if(s!=TextToSpeech.SUCCESS){fail("Speech output unavailable");return;}voice.setOnUtteranceProgressListener(new UtteranceProgressListener(){public void onStart(String id){}public void onDone(String id){main.post(()->listen());}public void onError(String id){main.post(()->fail("Speech output failed"));}});listen();});return START_NOT_STICKY;}
  void fail(String message){failure=message;stopSelf();}
  void listen(){if(closed)return;state=awake?"Listening. Ask for the time, or say go to sleep.":"Standby. Say wake up Jarvis.";
- mic.startListening(new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_LANGUAGE,"en-IN"));}
+ mic.startListening(new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_LANGUAGE,"en-GB"));}
  public void onResults(Bundle b){ArrayList<String> words=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);String q=words==null||words.isEmpty()?"":words.get(0).toLowerCase(Locale.ROOT).replaceAll("[.!?,]","").trim();
  String reply;if(!awake){if(!q.equals("wake up jarvis")){main.postDelayed(this::listen,350);return;}awake=true;reply="Ready, sir.";}
  else if(q.equals("go to sleep")){awake=false;reply="Standing by.";}else if(q.contains("time"))reply="It is "+android.text.format.DateFormat.getTimeFormat(this).format(new Date());else reply="I heard "+q;
