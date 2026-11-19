@@ -8,6 +8,7 @@ import java.util.*;
 public class Voice extends Service implements RecognitionListener {
  static volatile String state="Stopped";
  SpeechRecognizer mic; TextToSpeech voice; boolean awake,closed; String failure;
+ Chat chat=new Chat();
  Handler main=new Handler(Looper.getMainLooper());
  public IBinder onBind(Intent i){return null;}
  public int onStartCommand(Intent i,int f,int id){
@@ -21,11 +22,21 @@ public class Voice extends Service implements RecognitionListener {
  mic=SpeechRecognizer.createOnDeviceSpeechRecognizer(this);mic.setRecognitionListener(this);
  voice=new TextToSpeech(this,s->{if(closed)return;if(s!=TextToSpeech.SUCCESS){fail("Speech output unavailable");return;}voice.setOnUtteranceProgressListener(new UtteranceProgressListener(){public void onStart(String id){}public void onDone(String id){main.post(()->listen());}public void onError(String id){main.post(()->fail("Speech output failed"));}});listen();});return START_NOT_STICKY;}
  void fail(String message){failure=message;stopSelf();}
- void listen(){if(closed)return;state=awake?"Listening. Ask for the time, or say go to sleep.":"Standby. Say wake up Jarvis.";
+ void listen(){if(closed)return;state=awake?"Listening. Ask a question, or say go to sleep.":"Standby. Say wake up Jarvis.";
  mic.startListening(new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_LANGUAGE,"en-GB"));}
  public void onResults(Bundle b){ArrayList<String> words=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);String q=words==null||words.isEmpty()?"":words.get(0).toLowerCase(Locale.ROOT).replaceAll("[.!?,]","").trim();
  String reply;if(!awake){if(!q.equals("wake up jarvis")){main.postDelayed(this::listen,350);return;}awake=true;reply="Ready, sir.";}
- else if(q.equals("go to sleep")){awake=false;reply="Standing by.";}else if(q.contains("time"))reply="It is "+android.text.format.DateFormat.getTimeFormat(this).format(new Date());else reply="I heard "+q;
+ else if(q.equals("go to sleep")){awake=false;chat=new Chat();reply="Standing by.";}else if(q.matches("(what time is it|time|what is the time|tell me the time)"))reply="It is "+android.text.format.DateFormat.getTimeFormat(this).format(new Date());else {
+ if(q.isEmpty()){listen();return;}
+ String question=words.get(0);Chat session=chat;state="Asking Gemini…";
+ new Thread(()->{String result;
+ try{result=session.ask(this,question);}catch(Exception ex){result="Could not get a Gemini reply, sir.";}
+ String answer=result;main.post(()->{if(!closed && awake && chat==session)say(answer);});
+ }).start();return;} say(reply);}
+ void say(String reply){
+ Locale language=reply.matches("(?s).*\\p{InTelugu}.*")?new Locale("te","IN"):Locale.UK;
+ if(voice.setLanguage(language)<0){state="Voice unavailable. "+reply;main.postDelayed(this::listen,10000);return;}
+ if(reply.length()>3900)reply=reply.substring(0,3900);
  state=reply;if(voice.speak(reply,TextToSpeech.QUEUE_FLUSH,null,"reply")==TextToSpeech.ERROR)fail("Speech output unavailable");}
  public void onError(int e){if(e==6||e==7){main.postDelayed(this::listen,500);}else fail("Recognition stopped (code "+e+"). Check installed English speech data.");}
  public void onDestroy(){closed=true;main.removeCallbacksAndMessages(null);if(mic!=null)mic.destroy();if(voice!=null)voice.shutdown();state=failure==null?"Stopped":failure;super.onDestroy();}
